@@ -44,8 +44,13 @@ provider:
     - Effect: Allow
       Action:
       - KMS:Decrypt
-      Resource: ${self:custom.kmsSecrets.keyArn} 
-#    - Effect: "Allow"
+      Resource: ${self:custom.kmsSecrets.keyArn}
+    - Effect: Allow
+      Action:
+        - dynamodb:*
+      Resource:
+        - "Fn::GetAtt": [ wordsDynamoDBTable, Arn ]
+  #    - Effect: "Allow"
 #      Action:
 #        - "s3:ListBucket"
 #      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
@@ -72,10 +77,11 @@ package:
     - package*.json
     - node_modules/**
     - client/**
+    - __pycache__/**
 
 functions:
-  hello:
-    handler: handler.hello
+  sms:
+    handler: handler.sms
     events:
       - http:
           path: sms
@@ -85,6 +91,22 @@ functions:
           path: sms
           method: get
           private: false
+
+  wt:
+    handler: handler.words_test
+  words:
+    handler: handler.words
+    events:
+      - http:
+          path: words
+          method: get
+          private: false
+          cors: true # <-- CORS!
+      - http:
+          path: words/{book}
+          method: get
+          private: false
+          cors: true # <-- CORS!
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details
@@ -126,8 +148,29 @@ functions:
 #      variable2: value2
 
 # you can add CloudFormation resource templates here
-#resources:
-#  Resources:
+resources:
+  Resources:
+    wordsDynamoDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: "Book"
+            AttributeType: "S"
+          -
+            AttributeName: "BookWord"
+            AttributeType: "S"
+        KeySchema:
+          -
+            AttributeName: "Book"
+            KeyType: "HASH"
+          -
+            AttributeName: "BookWord"
+            KeyType: "RANGE"
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "words"
 #    NewResource:
 #      Type: AWS::S3::Bucket
 #      Properties:
