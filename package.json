@@ -1,0 +1,9 @@
+{
+  "name": "txt-cloud",
+  "description": "",
+  "version": "0.1.0",
+  "dependencies": {},
+  "devDependencies": {
+    "serverless-kms-secrets": "^1.0.4"
+  }
+}
