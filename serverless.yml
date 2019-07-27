@@ -19,10 +19,17 @@ service: txt-cloud
 # Check out our docs for more details
 # frameworkVersion: "=X.X.X"
 
+plugins:
+  - serverless-kms-secrets
+  - serverless-python-requirements
+  - serverless-finch
 custom:
   serverless-kms-secrets:
     secretsFile: kms-secrets.${opt:stage, self:provider.stage}.${opt:region, self:provider.region}.yml
   kmsSecrets: ${file(kms-secrets.${opt:stage, self:provider.stage}.${opt:region, self:provider.region}.yml)}
+  client:
+    bucketName: com.xczimi.us-west-1.txt-cloud.client
+    distributionFolder: client/build
 
 provider:
   name: aws
@@ -64,10 +71,20 @@ package:
   exclude:
     - package*.json
     - node_modules/**
+    - client/**
 
 functions:
   hello:
     handler: handler.hello
+    events:
+      - http:
+          path: sms
+          method: post
+          private: false
+      - http:
+          path: sms
+          method: get
+          private: false
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details
@@ -119,6 +136,3 @@ functions:
 #     NewOutput:
 #       Description: "Description for the output"
 #       Value: "Some output value"
-
-plugins:
-  - serverless-kms-secrets
