@@ -4,6 +4,7 @@ import base64
 import os
 import urllib.parse
 import twilio.twiml
+import time
 
 from wordcount import WordCount
 
@@ -33,32 +34,52 @@ def update_counter(word, n=1, book="DEFAULT"):
         ReturnValues="UPDATED_NEW"
     )
     print("INC word " + word + " in " + book)
-    print(response)
 
 
-def words_static(event, context):
-    with open('words.json', 'r') as myfile:
-        words = json.load(myfile)
-    return {
-        "statusCode": 200,
-        "headers": {
-            'Access-Control-Allow-Origin': '*'
+def set_active_book(book, active='true'):
+    resp_off = dynamodb.update_item(
+        TableName='words',
+        Key={
+            'Book': {'S': 'books'},
+            'BookWord': {'S': book}
         },
-        "body": json.dumps(words)
-    }
+        UpdateExpression='SET active = :active',
+        ExpressionAttributeValues={
+            ':active': {'BOOL': active}
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+    print("SET book " + book + " TO " + active)
 
 
-def words(event, context):
+def get_books():
     resp = dynamodb.query(
         TableName='words',
         KeyConditionExpression="Book = :book",
         ExpressionAttributeValues={
             ':book': {
-                'S': 'DEFAULT',
+                'S': 'books',
             },
         }
     )
-    print(resp)
+    return [{'book':item['BookWord']['S'],'active':item['active']['BOOL']} for item in resp['Items']]
+
+
+def words(event, context):
+    print(json.dumps(event))
+    book = 'DEFAULT'
+    if 'pathParameters' in event:
+        if 'book' in event['pathParameters']:
+            book = event['pathParameters']['book']
+    resp = dynamodb.query(
+        TableName='words',
+        KeyConditionExpression="Book = :book",
+        ExpressionAttributeValues={
+            ':book': {
+                'S': book,
+            },
+        }
+    )
     wc = [{'text':item['BookWord']['S'],'value':item['wordCount']['N']} for item in resp['Items']]
     return {
         "statusCode": 200,
@@ -69,24 +90,22 @@ def words(event, context):
     }
 
 
-def process_text(text):
-    for word, n in wc.process_text(text).items():
-        print(word,n)
+def process_sms(text, book='DEFAULT'):
+    frequencies = wc.process_text(text)
+    print(json.dumps({'book': book, 'sms': text, 'stats': frequencies, 'sent': time.time()}))
+    for word, n in frequencies.items():
         update_counter(word, n=n)
-    # for word in text.split():
-    #     if len(word) > 1:
-    #         update_counter(word)
 
 
 def sms(event, context):
     print(json.dumps(event))
     # GET requests
     if event['queryStringParameters'] is not None:
-        process_text(event['queryStringParameters']['Body'])
+        process_sms(event['queryStringParameters']['Body'])
     # POST requests
-    if 'Body' in urllib.parse.parse_qs(event['body']):
+    elif 'Body' in urllib.parse.parse_qs(event['body']):
         for words in urllib.parse.parse_qs(event['body'])['Body']:
-            process_text(words)
+            process_sms(words)
 
     response = {
         "statusCode": 200,
