@@ -1,11 +1,8 @@
 import React from 'react';
 import './App.css';
 import * as d3 from 'd3';
-import * as cloud from 'd3-cloud';
-import { scaleOrdinal } from 'd3-scale';
+import * as d3Cloud from 'd3-cloud';
 import debugWords from './words';
-
-console.log(debugWords);
 
 class App extends React.Component {
   constructor(props) {
@@ -18,11 +15,14 @@ class App extends React.Component {
   }
 
   d3Chart(words) {
-    var fill = scaleOrdinal().domain(words.map(w => w.text)).range(["69D2E7","A7DBD8","E0E4CC","F38630","FA6900"]);
+    var fillScale = d3.scaleOrdinal(d3.schemeCategory10);
+    const wordSizes = words.filter(w => w.value > 1).map(w => w.value);
+    var sizeScale = d3.scaleLinear().range([10, 100]).domain([Math.min(...wordSizes),Math.max(...wordSizes)]);
+    console.log([Math.min(...wordSizes),Math.max(...wordSizes)]);
 
-    var layout = cloud().size([800, 500]).words(words.map(function(w) {
-      return {text: w.text, size: w.value};
-    }).filter(w => w.size > 1)).padding(5).rotate(function() {
+    var layout = d3Cloud().size([800, 500]).words(words.filter(w => w.value > 1).map(function(w) {
+      return {text: w.text, size: sizeScale(w.value)};
+    })).padding(5).rotate(function() {
       return 0;
     }).font('Verdana').fontWeight('bold').fontSize(function(d) {
       return d.size;
@@ -45,40 +45,26 @@ class App extends React.Component {
           style('font-size', function(d) {
             return d.size + 'px';
           }).
-          style('font-family', 'Verdana').style('font-weight', 'bold')
-      .attr('text-anchor', 'middle').
+          style('font-family', 'Verdana').
+          style('font-weight', 'bold').
+          attr('text-anchor', 'middle').
           attr('transform', function(d) {
             return 'translate(' + [d.x, d.y] + ')rotate(' + d.rotate + ')';
           }).
-          style('fill', t => { return fill(t.text)} ).
+          style('fill', t => {
+            return fillScale(t.text);
+          }).
           text(function(d) {
             return d.text;
           });
-      loadColours();
     }
 
-    function colourWords(colours) {
-      fill.range(colours);
-    }
-
-    function loadColours() {
-      fetch('http://www.colourlovers.com/api/palettes/random?format=json')
-      .then(res => res.json())
-      .then(
-          (result) => {
-            colourWords(result[0].colors);
-          },
-          (error) => {
-            colourWords(["C1C2A5","C3FF00","6A8F72","0EE3DF","685A70"]);
-          }
-      )
-    }
   }
 
   loadWords() {
     this.setState({
       isLoaded: true,
-      words: debugWords
+      words: debugWords,
     });
     this.d3Chart(debugWords);
     fetch('https://l1aycdz6w6.execute-api.us-west-1.amazonaws.com/dev/words').
@@ -87,9 +73,9 @@ class App extends React.Component {
             (result) => {
               this.setState({
                 isLoaded: true,
-                words: debugWords,
+                words: result,
               });
-              this.d3Chart(debugWords);
+              this.d3Chart(result);
             },
             // Note: it's important to handle errors here
             // instead of a catch() block so that we don't swallow

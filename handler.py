@@ -5,15 +5,20 @@ import os
 import urllib.parse
 import twilio.twiml
 
+from wordcount import WordCount
+
 kms = boto3.client('kms')
 dynamodb = boto3.client('dynamodb')
 
-SECRETS = json.loads(kms.decrypt(
-    CiphertextBlob=base64.b64decode(os.environ['SECRETS'])
-)['Plaintext'].decode("utf-8"))
+if 'SECRETS' in os.environ:
+    SECRETS = json.loads(kms.decrypt(
+        CiphertextBlob=base64.b64decode(os.environ['SECRETS'])
+    )['Plaintext'].decode("utf-8"))
+
+wc = WordCount()
 
 
-def update_counter(word, book="DEFAULT"):
+def update_counter(word, n=1, book="DEFAULT"):
     response = dynamodb.update_item(
         TableName='words',
         Key={
@@ -22,7 +27,7 @@ def update_counter(word, book="DEFAULT"):
         },
         UpdateExpression='SET wordCount = if_not_exists(wordCount, :init) + :inc',
         ExpressionAttributeValues={
-            ':inc': {'N': '1'},
+            ':inc': {'N': str(n)},
             ':init': {'N': '0'},
         },
         ReturnValues="UPDATED_NEW"
@@ -42,6 +47,7 @@ def words_static(event, context):
         "body": json.dumps(words)
     }
 
+
 def words(event, context):
     resp = dynamodb.query(
         TableName='words',
@@ -54,10 +60,6 @@ def words(event, context):
     )
     print(resp)
     wc = [{'text':item['BookWord']['S'],'value':item['wordCount']['N']} for item in resp['Items']]
-    # with open('words.json', 'r') as myfile:
-    #     words = json.load(myfile)
-    #     for word in words:
-    #         wc.append(word)
     return {
         "statusCode": 200,
         "headers": {
@@ -67,19 +69,24 @@ def words(event, context):
     }
 
 
+def process_text(text):
+    for word, n in wc.process_text(text).items():
+        print(word,n)
+        update_counter(word, n=n)
+    # for word in text.split():
+    #     if len(word) > 1:
+    #         update_counter(word)
+
+
 def sms(event, context):
     print(json.dumps(event))
     # GET requests
     if event['queryStringParameters'] is not None:
-        for word in event['queryStringParameters']['Body'].split():
-            if len(word) > 1:
-                update_counter(word)
+        process_text(event['queryStringParameters']['Body'])
     # POST requests
     if 'Body' in urllib.parse.parse_qs(event['body']):
         for words in urllib.parse.parse_qs(event['body'])['Body']:
-            for word in words.split():
-                if len(word) > 1:
-                    update_counter(word)
+            process_text(words)
 
     response = {
         "statusCode": 200,
@@ -91,12 +98,3 @@ def sms(event, context):
     }
 
     return response
-
-    # Use this code if you don't use the http event with the LAMBDA-PROXY
-    # integration
-    """
-    return {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
-        "event": event
-    }
-    """
