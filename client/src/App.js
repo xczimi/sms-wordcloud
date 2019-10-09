@@ -25,7 +25,7 @@ class App extends React.Component {
   currentBook = () => this.state.books.find(
       book => book.book === this.state.book);
 
-  loadBooks = () => {
+  loadBooks = (switchActive) => {
     fetch(`${apigUrl}/books`).
         then(res => res.json()).
         then(
@@ -35,7 +35,13 @@ class App extends React.Component {
                 books: result.filter(book => book.started),
               });
               console.log('books', result);
-              this.loadWords(result.find(book => book.active)['book']);
+              if(switchActive) {
+                this.loadWords(result.find(book => book.active)['book']);
+              } else {
+                if(this.state.book) {
+                  this.loadWords(this.state.book);
+                }
+              }
             },
             // Note: it's important to handle errors here
             // instead of a catch() block so that we don't swallow
@@ -82,11 +88,18 @@ class App extends React.Component {
       '*' :
       ''} [${book.started ? moment.utc(book.started).fromNow() : ''} - ${book.stopped ? moment.utc(book.stopped).fromNow() : 'active'}]`;
 
+  startCountTimeout = () => {
+    setInterval(() => {
+      this.loadBooks();
+    }, 60000);
+  };
+
   componentDidMount() {
     const {book} = this.state;
     console.log('componentDidMount', book);
-    this.loadBooks();
-  }
+    this.loadBooks(true);
+    this.startCountTimeout();
+  };
 
   render() {
     const {error, isLoaded} = this.state;
