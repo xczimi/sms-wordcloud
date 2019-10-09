@@ -5,6 +5,7 @@ import os
 import urllib.parse
 import twilio.twiml
 import time
+import datetime
 
 from wordcount import WordCount
 
@@ -19,7 +20,7 @@ if 'SECRETS' in os.environ:
 wc = WordCount()
 
 
-def update_counter(word, n=1, book="DEFAULT"):
+def update_counter(word, book, n=1):
     response = dynamodb.update_item(
         TableName='words',
         Key={
@@ -36,20 +37,36 @@ def update_counter(word, n=1, book="DEFAULT"):
     print("INC word " + word + " in " + book)
 
 
-def set_active_book(book, active='true'):
+def set_active_book(book, active=True):
+    if active:
+        ts_field = 'started'
+    else:
+        ts_field = 'stopped'
+    now = datetime.datetime.now().replace(microsecond=0).isoformat()
     resp_off = dynamodb.update_item(
         TableName='words',
         Key={
             'Book': {'S': 'books'},
             'BookWord': {'S': book}
         },
-        UpdateExpression='SET active = :active',
+        UpdateExpression='SET active = :active, ' + ts_field + ' = :now',
         ExpressionAttributeValues={
-            ':active': {'BOOL': active}
+            ':active': {'BOOL': active},
+            ':now': {'S': now}
         },
         ReturnValues="UPDATED_NEW"
     )
-    print("SET book " + book + " TO " + active)
+    print("SET book " + book + " TO " + str(active))
+    print(resp_off)
+
+
+def book_from_item(item):
+    book = {'book': item['BookWord']['S'], 'active': item['active']['BOOL'], 'started': None, 'stopped': None}
+    if 'started' in item:
+        book['started'] = item['started']['S']
+    if 'stopped' in item:
+        book['stopped'] = item['stopped']['S']
+    return book
 
 
 def get_books():
@@ -62,7 +79,7 @@ def get_books():
             },
         }
     )
-    return [{'book':item['BookWord']['S'],'active':item['active']['BOOL']} for item in resp['Items']]
+    return [book_from_item(item) for item in resp['Items']]
 
 
 def words(event, context):
@@ -80,40 +97,78 @@ def words(event, context):
             },
         }
     )
-    wc = [{'text':item['BookWord']['S'],'value':item['wordCount']['N']} for item in resp['Items']]
+    print(json.dumps(resp))
+    wc = [{'text': item['BookWord']['S'], 'value': item['wordCount']['N']} for item in resp['Items']]
     return {
         "statusCode": 200,
         "headers": {
-            'Access-Control-Allow-Origin': '*'
+            "Content-Type": "application/json",
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': True
         },
         "body": json.dumps(wc)
     }
 
 
-def process_sms(text, book='DEFAULT'):
+def get_active_book(books):
+    for book in books:
+        if book['active']:
+            return book['book']
+    book = "book" + str(len(books))
+    set_active_book(book)
+    return book
+
+
+def process_sms(text, books):
+    book = get_active_book(books)
+    if text == "reset":
+        set_active_book(book, False)
+        new_book = "cloud" + str(len(books))
+        set_active_book(new_book)
+        return 'Old cloud closed (' + book + '). New cloud started (' + new_book + ')'
+
     frequencies = wc.process_text(text)
     print(json.dumps({'book': book, 'sms': text, 'stats': frequencies, 'sent': time.time()}))
     for word, n in frequencies.items():
-        update_counter(word, n=n)
+        update_counter(word, book, n=n)
+    return 'Thank you for you message. Word cloud updated. (' + book + ')'
 
 
 def sms(event, context):
     print(json.dumps(event))
+    books = get_books()
+    print(json.dumps(books))
+    message = None
     # GET requests
     if event['queryStringParameters'] is not None:
-        process_sms(event['queryStringParameters']['Body'])
+        message = process_sms(event['queryStringParameters']['Body'], books)
     # POST requests
     elif 'Body' in urllib.parse.parse_qs(event['body']):
         for words in urllib.parse.parse_qs(event['body'])['Body']:
-            process_sms(words)
-
+            message = process_sms(words, books)
+    if message is None:
+        message = 'Thank you for you message. Word cloud updated.'
     response = {
         "statusCode": 200,
         "headers": {
-            "Content-Type":"text/xml"
+            "Content-Type": "text/xml",
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': True
         },
         "body": '<?xml version=\"1.0\" encoding=\"UTF-8\"?>'
-                '<Response><Message>Hello world! -Lambda</Message></Response>'
+                '<Response><Message>' + message + '</Message></Response>'
     }
 
     return response
+
+
+def books(event, context):
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': True
+        },
+        "body": json.dumps(get_books())
+    }

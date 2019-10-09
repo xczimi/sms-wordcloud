@@ -3,9 +3,11 @@
   "description": "",
   "version": "0.1.0",
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "moment": "^2.24.0"
+  },
   "devDependencies": {
-    "serverless-finch": "^2.4.2",
+    "serverless-finch": "^2.4.3",
     "serverless-kms-secrets": "^1.0.4",
     "serverless-python-requirements": "^4.3.0"
   }

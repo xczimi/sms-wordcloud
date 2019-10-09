@@ -28,7 +28,7 @@ custom:
     secretsFile: kms-secrets.${opt:stage, self:provider.stage}.${opt:region, self:provider.region}.yml
   kmsSecrets: ${file(kms-secrets.${opt:stage, self:provider.stage}.${opt:region, self:provider.region}.yml)}
   client:
-    bucketName: com.xczimi.us-west-1.txt-cloud.client
+    bucketName: smscloud.xczimi.com
     distributionFolder: client/build
 
 provider:
@@ -87,10 +87,12 @@ functions:
           path: sms
           method: post
           private: false
+          cors: true # <-- CORS!
       - http:
           path: sms
           method: get
           private: false
+          cors: true # <-- CORS!
 
   books:
     handler: handler.books
@@ -99,7 +101,7 @@ functions:
           path: books
           method: get
           private: false
-          cors: true
+          cors: true # <-- CORS!
 
   words:
     handler: handler.words
