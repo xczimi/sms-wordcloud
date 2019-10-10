@@ -6,6 +6,7 @@ import urllib.parse
 import twilio.twiml
 import time
 import datetime
+from lambda_decorators import json_http_resp, cors_headers
 
 from wordcount import WordCount
 
@@ -82,8 +83,9 @@ def get_books():
     return [book_from_item(item) for item in resp['Items']]
 
 
+@cors_headers(credentials=True)
+@json_http_resp
 def words(event, context):
-    print(json.dumps(event))
     book = 'DEFAULT'
     if 'pathParameters' in event:
         if 'book' in event['pathParameters']:
@@ -97,17 +99,7 @@ def words(event, context):
             },
         }
     )
-    print(json.dumps(resp))
-    wc = [{'text': item['BookWord']['S'], 'value': item['wordCount']['N']} for item in resp['Items']]
-    return {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': True
-        },
-        "body": json.dumps(wc)
-    }
+    return [{'text': item['BookWord']['S'], 'value': item['wordCount']['N']} for item in resp['Items']]
 
 
 def get_active_book(books):
@@ -135,9 +127,7 @@ def process_sms(text, books):
 
 
 def sms(event, context):
-    print(json.dumps(event))
     books = get_books()
-    print(json.dumps(books))
     message = None
     # GET requests
     if event['queryStringParameters'] is not None:
@@ -162,13 +152,7 @@ def sms(event, context):
     return response
 
 
+@cors_headers(credentials=True)
+@json_http_resp
 def books(event, context):
-    return {
-        "statusCode": 200,
-        "headers": {
-            "Content-Type": "application/json",
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': True
-        },
-        "body": json.dumps(get_books())
-    }
+    return get_books()

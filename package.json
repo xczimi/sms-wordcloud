@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "moment": "^2.24.0"
+    "moment": "^2.24.0",
+    "serverless": "^1.54.0"
   },
   "devDependencies": {
     "serverless-finch": "^2.4.3",
