@@ -84,6 +84,10 @@ class App extends React.Component {
     this.loadWords(button.target.id);
   };
 
+  bookRawCsvHref = (book) => `${apigUrl}/bookcsv/${book}`;
+
+  bookStatCsvHref = (book) => `${apigUrl}/wordcsv/${book}`;
+
   lineBook = (book) => `${book.book} ${book.active ?
       '*' :
       ''} [${book.started ? moment.utc(book.started).fromNow() : ''} - ${book.stopped ? moment.utc(book.stopped).fromNow() : 'active'}]`;
@@ -118,11 +122,15 @@ class App extends React.Component {
                       <Dropdown.Item as="button" key={book.book} id={book.book}
                                      onClick={this.clickLoadBook}>{this.lineBook(book)}</Dropdown.Item>
                   ))}
-                </DropdownButton></Nav>
+                </DropdownButton>
+                <Nav.Link href={this.bookRawCsvHref(this.state.book)} target="_blank">messages.csv</Nav.Link>
+                <Nav.Link href={this.bookStatCsvHref(this.state.book)} target="_blank">stats.csv</Nav.Link>
+              </Nav>
+              <Nav className="mr-auto"><h1>{this.state.book}</h1></Nav>
               <Nav className="mr-fill">(778) 200-0862</Nav>
             </Navbar>
             <div className="App-body">
-              <h1>{this.state.book}</h1>
+
               <div id="chart" style={{width: '100%', height: '100%'}}>
                 <Cloud words={this.state.words}/>
               </div>

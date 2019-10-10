@@ -50,6 +50,11 @@ provider:
         - dynamodb:*
       Resource:
         - "Fn::GetAtt": [ wordsDynamoDBTable, Arn ]
+    - Effect: Allow
+      Action:
+        - logs:FilterLogEvents
+      Resource:
+        - "Fn::GetAtt": [ SmsLogGroup, Arn ]
   #    - Effect: "Allow"
 #      Action:
 #        - "s3:ListBucket"
@@ -99,6 +104,24 @@ functions:
     events:
       - http:
           path: books
+          method: get
+          private: false
+          cors: true # <-- CORS!
+
+  book_csv:
+    handler: handler.book_csv
+    events:
+      - http:
+          path: bookcsv/{book}
+          method: get
+          private: false
+          cors: true # <-- CORS!
+
+  words_csv:
+    handler: handler.words_csv
+    events:
+      - http:
+          path: wordcsv/{book}
           method: get
           private: false
           cors: true # <-- CORS!
