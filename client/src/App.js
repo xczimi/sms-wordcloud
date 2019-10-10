@@ -20,6 +20,7 @@ class App extends React.Component {
       words: [],
       books: [],
       book: null,
+      day: moment().format('YYYY-MM-DD'),
     };
   }
 
@@ -33,13 +34,13 @@ class App extends React.Component {
             (result) => {
               this.setState({
                 isLoaded: true,
-                books: result.filter(book => book.started),
+                books: [...result.filter(book => book.started)].sort(
+                    (a, b) => (a.started < b.started) ? 1 : -1),
               });
-              console.log('books', result);
-              if(switchActive) {
+              if (switchActive) {
                 this.loadWords(result.find(book => book.active)['book']);
               } else {
-                if(this.state.book) {
+                if (this.state.book) {
                   this.loadWords(this.state.book);
                 }
               }
@@ -85,13 +86,19 @@ class App extends React.Component {
     this.loadWords(button.target.id);
   };
 
+  setDay = (button) => {
+    this.setState({'day': button.target.id});
+  };
+
   bookRawCsvHref = (book) => `${apigUrl}/bookcsv/${book}`;
 
   bookStatCsvHref = (book) => `${apigUrl}/wordcsv/${book}`;
 
   lineBook = (book) => `${book.book} ${book.active ?
       '*' :
-      ''} [${book.started ? moment.utc(book.started).fromNow() : ''} - ${book.stopped ? moment.utc(book.stopped).fromNow() : 'active'}]`;
+      ''} [${book.started ?
+      moment.utc(book.started).fromNow() :
+      ''} - ${book.stopped ? moment.utc(book.stopped).fromNow() : 'active'}]`;
 
   startCountTimeout = () => {
     setInterval(() => {
@@ -129,14 +136,29 @@ class App extends React.Component {
             <Navbar bg="light" variant="light">
               <Navbar.Brand href="#">SMS Word Cloud</Navbar.Brand>
               <Nav className="mr-auto">
-                <DropdownButton id="dropdown-basic-button" title="Pick a cloud">
-                  {this.state.books.map(book => (
-                      <Dropdown.Item as="button" key={book.book} id={book.book}
-                                     onClick={this.clickLoadBook}>{this.lineBook(book)}</Dropdown.Item>
+                <DropdownButton id="dropdown-cloud" variant="secondary"
+                                title="Pick a date">
+                  {[
+                    ...new Set(this.state.books.map(
+                        book => moment(book.started).
+                            format('YYYY-MM-DD')))].map(day => (
+                      <Dropdown.Item as="button" id={day} key={day}
+                                     onClick={this.setDay}>{day}</Dropdown.Item>
                   ))}
                 </DropdownButton>
-                <Nav.Link href={this.bookRawCsvHref(this.state.book)} target="_blank">messages.csv</Nav.Link>
-                <Nav.Link href={this.bookStatCsvHref(this.state.book)} target="_blank">stats.csv</Nav.Link>
+                <DropdownButton id="dropdown-cloud" title="Pick a cloud">
+                  {this.state.books.filter(
+                      book => moment(book.started).format('YYYY-MM-DD') ===
+                          this.state.day).map(book => (
+                      <Dropdown.Item as="button" key={book.book} id={book.book}
+                                     onClick={this.clickLoadBook}>{this.lineBook(
+                          book)}</Dropdown.Item>
+                  ))}
+                </DropdownButton>
+                <Nav.Link href={this.bookRawCsvHref(this.state.book)}
+                          target="_blank">messages.csv</Nav.Link>
+                <Nav.Link href={this.bookStatCsvHref(this.state.book)}
+                          target="_blank">stats.csv</Nav.Link>
                 <Nav.Link onClick={this.downloadSvg}>cloud.svg</Nav.Link>
                 <Nav.Link onClick={this.downloadPng}>cloud.png</Nav.Link>
 
