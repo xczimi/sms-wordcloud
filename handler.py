@@ -204,7 +204,7 @@ admin_senders = ["+17789914507","+17789979236"]
 
 def process_cmd(text, books):
     book = get_active_book(books)
-    if text == "reset":
+    if text.lower().strip() == "reset":
         set_active_book(book, False)
         new_book = "cloud" + str(len(books))
         set_active_book(new_book)

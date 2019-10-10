@@ -13,7 +13,8 @@
     "react-bootstrap": "^1.0.0-beta.14",
     "react-d3-library": "^1.1.8",
     "react-dom": "^16.8.6",
-    "react-scripts": "3.0.1"
+    "react-scripts": "3.0.1",
+    "svgsaver": "^0.9.0"
   },
   "scripts": {
     "start": "react-scripts start",

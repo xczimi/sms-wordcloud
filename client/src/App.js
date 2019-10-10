@@ -7,6 +7,7 @@ import Dropdown from 'react-bootstrap/Dropdown';
 import Navbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
 import moment from 'moment';
+import SvgSaver from 'svgsaver';
 
 const apigUrl = 'https://l1aycdz6w6.execute-api.us-west-1.amazonaws.com/dev';
 
@@ -98,6 +99,17 @@ class App extends React.Component {
     }, 60000);
   };
 
+  downloadSvg = () => {
+    var svgsaver = new SvgSaver();                      // creates a new instance
+    var svg = document.querySelector('#chart');         // find the SVG element
+    svgsaver.asSvg(svg, `${this.state.book}.svg`);
+  };
+  downloadPng = () => {
+    var svgsaver = new SvgSaver();                      // creates a new instance
+    var svg = document.querySelector('#chart');         // find the SVG element
+    svgsaver.asPng(svg, `${this.state.book}.png`);
+  };
+
   componentDidMount() {
     const {book} = this.state;
     console.log('componentDidMount', book);
@@ -125,6 +137,9 @@ class App extends React.Component {
                 </DropdownButton>
                 <Nav.Link href={this.bookRawCsvHref(this.state.book)} target="_blank">messages.csv</Nav.Link>
                 <Nav.Link href={this.bookStatCsvHref(this.state.book)} target="_blank">stats.csv</Nav.Link>
+                <Nav.Link onClick={this.downloadSvg}>cloud.svg</Nav.Link>
+                <Nav.Link onClick={this.downloadPng}>cloud.png</Nav.Link>
+
               </Nav>
               <Nav className="mr-auto"><h1>{this.state.book}</h1></Nav>
               <Nav className="mr-fill">(778) 200-0862</Nav>
