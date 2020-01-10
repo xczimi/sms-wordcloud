@@ -147,10 +147,10 @@ def book_csv(event, context):
         stopped = datetime.fromisoformat(book['stopped'])
     started = dateutil.parser.parse(book['started'])
     response_iterator = paginator.paginate(
-        logGroupName='/aws/lambda/txt-cloud-dev-sms',
+        logGroupName=f"/aws/lambda/txt-cloud-{app_stage}-sms",
         logStreamNamePrefix='{}/'.format(started.year),
         endTime=int(stopped.timestamp() * 1000),
-        filterPattern='{ $.stage = "' + app_stage + '" } AND { $.book = "' + book['book'] + '" }'
+        filterPattern='{ ($.stage = "' + app_stage + '") && ($.book = "' + book['book'] + '") }'
     )
     csv_fn = '/tmp/{}.csv'.format(book_id)
     with open(csv_fn, 'w') as csv_file_w:
