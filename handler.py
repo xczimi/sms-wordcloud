@@ -1,33 +1,36 @@
 import json
 import boto3
-import base64
 import os
 import urllib.parse
-import twilio.twiml
 import time
 from lambda_decorators import json_http_resp, cors_headers
 import dateutil.parser
 from datetime import datetime
 import csv
-from functools import reduce
 
 from wordcount import WordCount
 
-kms = boto3.client('kms')
+app_stage = os.environ['APP_STAGE']
+dynamodb_table_name = os.environ['DYNAMODB_TABLENAME']
+
+ssm = boto3.client('ssm')
 dynamodb = boto3.client('dynamodb')
 logs = boto3.client('logs')
-
-if 'SECRETS' in os.environ:
-    SECRETS = json.loads(kms.decrypt(
-        CiphertextBlob=base64.b64decode(os.environ['SECRETS'])
-    )['Plaintext'].decode("utf-8"))
 
 wc = WordCount()
 
 
+def get_secret(secret_key):
+    resp = ssm.get_parameter(
+        Name=f"{os.environ['SECRET_KEY_PREFIX']}/{secret_key}",
+        WithDecryption=True
+    )
+    return resp['Parameter']['Value']
+
+
 def update_counter(word, book, n=1):
     response = dynamodb.update_item(
-        TableName='words',
+        TableName=dynamodb_table_name,
         Key={
             'Book': {'S': book},
             'BookWord': {'S': word}
@@ -39,7 +42,7 @@ def update_counter(word, book, n=1):
         },
         ReturnValues="UPDATED_NEW"
     )
-    print("INC word " + word + " in " + book)
+    print(f"INC word {word} in {book} of {app_stage}")
 
 
 def set_active_book(book, active=True):
@@ -49,7 +52,7 @@ def set_active_book(book, active=True):
         ts_field = 'stopped'
     now = datetime.now().replace(microsecond=0).isoformat()
     response = dynamodb.update_item(
-        TableName='words',
+        TableName=dynamodb_table_name,
         Key={
             'Book': {'S': 'books'},
             'BookWord': {'S': book}
@@ -61,7 +64,7 @@ def set_active_book(book, active=True):
         },
         ReturnValues="UPDATED_NEW"
     )
-    print("SET book " + book + " TO " + str(active))
+    print(f"SET book {book} TO {active}")
 
 
 def book_from_item(item):
@@ -75,7 +78,7 @@ def book_from_item(item):
 
 def get_books():
     resp = dynamodb.query(
-        TableName='words',
+        TableName=dynamodb_table_name,
         KeyConditionExpression="Book = :book",
         ExpressionAttributeValues={
             ':book': {
@@ -88,7 +91,7 @@ def get_books():
 
 def get_words(book_id):
     resp = dynamodb.query(
-        TableName='words',
+        TableName=dynamodb_table_name,
         KeyConditionExpression="Book = :book",
         ExpressionAttributeValues={
             ':book': {
@@ -146,22 +149,22 @@ def book_csv(event, context):
     response_iterator = paginator.paginate(
         logGroupName='/aws/lambda/txt-cloud-dev-sms',
         logStreamNamePrefix='{}/'.format(started.year),
-        endTime=int(stopped.timestamp()*1000),
-        filterPattern='{ $.book = "'+book['book']+'" }'
+        endTime=int(stopped.timestamp() * 1000),
+        filterPattern='{ $.stage = "' + app_stage + '" } AND { $.book = "' + book['book'] + '" }'
     )
     csv_fn = '/tmp/{}.csv'.format(book_id)
     with open(csv_fn, 'w') as csv_file_w:
         spamwriter = csv.writer(csv_file_w)
-        spamwriter.writerow(['sent','book','sms'])
+        spamwriter.writerow(['sent', 'book', 'sms'])
         for page in response_iterator:
             for log_event in page['events']:
                 message = json.loads(log_event['message'])
-                spamwriter.writerow([str(datetime.fromtimestamp(message['sent'])),message['book'],message['sms']])
+                spamwriter.writerow([str(datetime.fromtimestamp(message['sent'])), message['book'], message['sms']])
     with open(csv_fn, 'r') as csv_file_r:
         return {'headers': {
             'Content-Type': 'text/csv',
             'Content-Disposition': 'inline; filename="{}_messages.csv"'.format(book_id)
-        }, 'body':csv_file_r.read()}
+        }, 'body': csv_file_r.read()}
 
 
 @cors_headers(credentials=True)
@@ -173,14 +176,14 @@ def words_csv(event, context):
     csv_fn = '/tmp/{}_stats.csv'.format(book_id)
     with open(csv_fn, 'w') as csv_file_w:
         spamwriter = csv.writer(csv_file_w)
-        spamwriter.writerow(['word','count'])
-        for stat in sorted(get_words(book_id), key = lambda x: int(x['value']), reverse=True):
-            spamwriter.writerow([stat['text'],stat['value']])
+        spamwriter.writerow(['word', 'count'])
+        for stat in sorted(get_words(book_id), key=lambda x: int(x['value']), reverse=True):
+            spamwriter.writerow([stat['text'], stat['value']])
     with open(csv_fn, 'r') as csv_file_r:
         return {'headers': {
             'Content-Type': 'text/csv',
             'Content-Disposition': 'inline; filename="{}_stats.csv"'.format(book_id)
-        }, 'body':csv_file_r.read()}
+        }, 'body': csv_file_r.read()}
 
 
 @cors_headers(credentials=True)
@@ -193,13 +196,13 @@ def process_sms(text, books):
     book = get_active_book(books)
 
     frequencies = wc.process_text(text)
-    print(json.dumps({'book': book, 'sms': text, 'stats': frequencies, 'sent': time.time()}))
+    print(json.dumps({'stage': app_stage, 'book': book, 'sms': text, 'stats': frequencies, 'sent': time.time()}))
     for word, n in frequencies.items():
         update_counter(word, book, n=n)
     return 'Thank you for you message. Word cloud updated. (' + book + ')'
 
 
-admin_senders = ["+17789914507","+17789979236"]
+admin_senders = ["+17789914507", "+17789979236"]
 
 
 def process_cmd(text, books):
